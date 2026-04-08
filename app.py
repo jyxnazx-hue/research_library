@@ -1,36 +1,39 @@
-try:
-    from openenv.core.env_server.http_server import create_app
-except Exception as e:
-    raise ImportError(
-        "openenv is required for the web interface. Install dependencies first."
-    ) from e
+# server/app.py
 
-try:
-    from .research_librarian_environment import ResearchLibrarianEnvironment
-    from ..models import ActionType, ResearchLibrarianObservation
-except ImportError:
-    from server.research_librarian_environment import ResearchLibrarianEnvironment
-    from models import ActionType, ResearchLibrarianObservation
+from fastapi import FastAPI, Body # Add Body to imports
+from pydantic import BaseModel
+from typing import Optional
 
+from models import ActionType
+from server.research_librarian_environment import ResearchLibraryEnvironment
 
-app = create_app(
-    ResearchLibrarianEnvironment,
-    ActionType,
-    ResearchLibrarianObservation,
-    env_name="research_librarian",
-    max_concurrent_envs=1,
-)
+app = FastAPI(title="Research Librarian API")
+env = ResearchLibraryEnvironment()
 
+class ResetRequest(BaseModel):
+    task_id: Optional[str] = None
 
-def main(host: str = "0.0.0.0", port: int = 8000):
-    import uvicorn
-    uvicorn.run(app, host=host, port=port)
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
+# --- UPDATED THIS ENDPOINT ---
+@app.post("/reset")
+async def reset(req: Optional[ResetRequest] = None):
+    # Use the task_id if provided, otherwise default to None
+    task_id = req.task_id if req else None
+    obs = await env.reset(task_id)
+    return {
+        "observation": obs.model_dump(),
+        "reward": obs.reward,
+        "done": obs.done,
+    }
 
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8000)
-    args = parser.parse_args()
-    main(port=args.port)
+@app.post("/step")
+async def step(action: ActionType):
+    obs = await env.step(action)
+    return {
+        "observation": obs.model_dump(),
+        "reward": obs.reward,
+        "done": obs.done,
+    }
