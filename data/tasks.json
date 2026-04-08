@@ -1,0 +1,17 @@
+[
+  {
+    "task_id": "identify_technology",
+    "description": "Identify the optical phenomenon enabling zero-heat style information transfer in the referenced material system.",
+    "start_node_id": "QUANTUMPHYS02"
+  },
+  {
+    "task_id": "chemical_ratio",
+    "description": "Find the critical metallic composition ratio described in the chemistry evidence.",
+    "start_node_id": "MATSCI03"
+  },
+  {
+    "task_id": "final_synthesis",
+    "description": "Synthesize the mechanism, material ratio, and artifact clue into one answer.",
+    "start_node_id": "CSMATH01"
+  }
+]

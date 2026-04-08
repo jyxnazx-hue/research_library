@@ -1,0 +1,50 @@
+[
+{
+  "node_id": "QUANTUMPHYS02",
+  "title": "Surface Plasmon Resonance in Nanostructures",
+  "domain": "Quantum Physics",
+  "abstract": "Short abstract...",
+  "content_text": "Longer content...",
+  "citations": [
+    "MATSCI03",
+    "CHEM73RATIO"
+  ],
+  "source_url": "https://example.org/paper"
+},
+{
+  "node_id": "MATSCI03",
+  "title": "Material Science Node",
+  "domain": "Material Science",
+  "abstract": "",
+  "content_text": "",
+  "citations": [],
+  "source_url": ""
+},
+{
+  "node_id": "CSMATH01",
+  "title": "CS Math Node",
+  "domain": "Computer Science / Math",
+  "abstract": "",
+  "content_text": "",
+  "citations": [],
+  "source_url": ""
+},
+{
+  "node_id": "CHEM73RATIO",
+  "title": "Chemistry Ratio Node",
+  "domain": "Chemistry",
+  "abstract": "",
+  "content_text": "",
+  "citations": [],
+  "source_url": ""
+},
+{
+  "node_id": "ARCHART402",
+  "title": "Archeology / Art Node",
+  "domain": "Archeology",
+  "abstract": "",
+  "content_text": "",
+  "citations": [],
+  "source_url": ""
+}
+]
