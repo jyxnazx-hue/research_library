@@ -1,6 +1,7 @@
+# openenv.yaml
 spec_version: 1
 name: research_librarian
 type: space
 runtime: fastapi
 app: server.app:app
-port: 8000
+port: 7860  
