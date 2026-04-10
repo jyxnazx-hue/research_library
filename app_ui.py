@@ -1,97 +1,65 @@
 import asyncio
 import gradio as gr
-
 from models import SearchAction, ReadAction, SubmitAction
 from server.research_librarian_environment import ResearchLibrarianEnvironment
 
 env = ResearchLibrarianEnvironment()
 
-
-async def run_action(task_id: str, action_type: str, input_text: str):
-    global env
-
-    if env.task_id != task_id or env.current_node_id is None:
+async def run_discovery(task_id, mode, val):
+    if env.current_node_id is None or env.task_id != task_id:
         obs = await env.reset(task_id)
-    else:
-        obs = env._build_observation()
+    
+    if mode == "Search": action = SearchAction(query=val)
+    elif mode == "Read": action = ReadAction(node_id=val)
+    else: action = SubmitAction(answer=val)
+    
+    obs = await env.step(action)
+    
+    # Format the Synthesis Report
+    report_md = f"""### 📑 {obs.current_title if obs.current_title else 'Awaiting Telemetry...'}
+**Domain:** {obs.current_domain} | **Reward:** {obs.reward:.2f}
 
-    if action_type == "Search":
-        obs = await env.step(SearchAction(query=input_text))
-    elif action_type == "Read":
-        obs = await env.step(ReadAction(node_id=input_text))
-    elif action_type == "Submit":
-        obs = await env.step(SubmitAction(answer=input_text))
+#### 🔬 Content Summary
+{obs.current_content if obs.current_content else 'No research node active.'}
 
-    discovery_md = "### Discovery Path\n" + " → ".join(obs.discovery_path)
-    stats_md = (
-        f"**Stats:** {obs.indexed_count} nodes indexed | "
-        f"Reward: {obs.reward:.2f} | Done: {obs.done}"
-    )
-
-    node_md = f"""
-### Current Node
-**ID:** {obs.current_node_id}
-
-**Title:** {obs.current_title}
-
-**Domain:** {obs.current_domain}
-
-**Content:**  
-{obs.current_content}
-
-**Citations:** {", ".join(obs.available_citations) if obs.available_citations else "None"}
+#### 🔗 Citations Found
+{chr(10).join([f"* {c}" for c in obs.available_citations]) if obs.available_citations else "*None detected.*"}
 """
+    log_md = "\n".join([f"> {t}" for t in obs.thought_log])
+    
+    return obs.graph_mermaid, report_md, log_md, f"**Reward:** {obs.reward:.2f}"
 
-    return discovery_md, stats_md, node_md
-
-
-def sync_run(task_id: str, action_type: str, input_text: str):
-    return asyncio.run(run_action(task_id, action_type, input_text))
-
-
-with gr.Blocks(title="Scientific Discovery Research Librarian") as demo:
-    gr.Markdown("# Scientific Discovery Research Librarian")
-    gr.Markdown(
-        "Traverse physics, materials science, chemistry, and archaeology "
-        "to solve the optical nano-filter discovery challenge."
-    )
+with gr.Blocks(theme=gr.themes.Soft(primary_hue="teal", secondary_hue="blue")) as demo:
+    gr.Markdown("# 🔬 Scientific Discovery Research Librarian")
+    gr.HTML("<hr>")
 
     with gr.Row():
-        with gr.Column(scale=1):
-            task_id = gr.Dropdown(
-                choices=[
-                    "identify_technology",
-                    "chemical_ratio",
-                    "final_synthesis",
-                ],
-                value="identify_technology",
-                label="Task",
-            )
+        # LEFT: CONTROLS
+        with gr.Column(scale=1, variant="panel"):
+            gr.Markdown("### 🛠️ Lab Mission")
+            task = gr.Radio(["identify_technology", "chemical_ratio", "final_synthesis"], value="identify_technology", label="Mission Select")
+            gr.HTML("<hr>")
+            mode = gr.Radio(["Search", "Read", "Submit"], label="Action Mode", value="Search")
+            inp = gr.Textbox(label="Neural Command", placeholder="Keywords or Node IDs...")
+            run_btn = gr.Button("⚡ Execute Discovery", variant="primary")
+            
+            gr.Markdown("### 📡 Neural Trace")
+            log_out = gr.Markdown("> Awaiting Neural Link...")
+            reward_out = gr.Markdown("**Reward:** 0.01")
 
-            action_type = gr.Radio(
-                ["Search", "Read", "Submit"],
-                label="Action Type",
-                value="Search",
-            )
-
-            input_text = gr.Textbox(
-                label="Input",
-                placeholder="Enter query, node ID, or final answer..."
-            )
-
-            run_btn = gr.Button("Execute", variant="primary")
-
+        # RIGHT: SYNTHESIS & GRAPH
         with gr.Column(scale=2):
-            discovery_tracker = gr.Markdown("### Discovery Path\nStart")
-            system_stats = gr.Markdown("**Stats:** 0 nodes indexed | Reward: 0.00")
-            node_view = gr.Markdown("### Current Node\nNo node loaded yet.")
+            with gr.Tabs():
+                with gr.TabItem("📄 Synthesis Engine"):
+                    report_out = gr.Markdown("### 📡 System Ready\nSelect a mission to begin.")
+                with gr.TabItem("🕸️ Citation Graph"):
+                    graph_out = gr.Markdown("```mermaid\ngraph LR\nStart\n```")
 
     run_btn.click(
-        fn=sync_run,
-        inputs=[task_id, action_type, input_text],
-        outputs=[discovery_tracker, system_stats, node_view],
+        fn=lambda t, m, v: asyncio.run(run_discovery(t, m, v)),
+        inputs=[task, mode, inp],
+        outputs=[graph_out, report_out, log_out, reward_out]
     )
-
 
 if __name__ == "__main__":
     demo.launch()
