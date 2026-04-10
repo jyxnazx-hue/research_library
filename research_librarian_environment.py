@@ -1,138 +1,83 @@
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
-
-from openenv.core.env_server.interfaces import Environment
-
-from models import (
-    ActionType,
-    SearchAction,
-    ReadAction,
-    SubmitAction,
-    ResearchLibrarianObservation,
-    ResearchLibrarianState,
-)
-
+from typing import Dict, Optional
+from models import ActionType, LibraryObservation, ReadAction, ResearchNode, SearchAction, SubmitAction
 from server.grader import grade_research_discovery
 
-
-class ResearchLibrarianEnvironment(Environment):
+class ResearchLibrarianEnvironment:
     def __init__(self):
         data_dir = Path(__file__).resolve().parent.parent / "data"
-
         with open(data_dir / "nodes.json", "r", encoding="utf-8") as f:
             nodes = json.load(f)
-
         with open(data_dir / "tasks.json", "r", encoding="utf-8") as f:
             tasks = json.load(f)
 
-        self.nodes: Dict[str, dict] = {node["node_id"]: node for node in nodes}
-        self.tasks: Dict[str, dict] = {task["task_id"]: task for task in tasks}
+        self.nodes = {n["node_id"]: ResearchNode(**n) for n in nodes}
+        self.tasks = {t["task_id"]: t for t in tasks}
+        self.reset_state()
 
-        self.task_id: str = ""
-        self.current_node_id: Optional[str] = None
-        self.discovery_path: List[str] = []
-        self.steps: int = 0
-        self.max_steps: int = 8
-        self.done: bool = False
-        self.reward: float = 0.0
-
-    async def reset(self, task_id: Optional[str] = None) -> ResearchLibrarianObservation:
-        self.task_id = task_id or "identify_technology"
-        self.steps = 0
-        self.done = False
-        self.reward = 0.0
+    def reset_state(self):
+        self.task_id = "identify_technology"
+        self.current_node_id = None
         self.discovery_path = []
+        self.thought_log = ["📡 Neural Link Established. Ready for discovery."]
+        self.reward = 0.01
+        self.done = False
 
-        if self.task_id == "identify_technology":
-            self.current_node_id = "QUANTUMPHYS02"
-        elif self.task_id == "chemical_ratio":
-            self.current_node_id = "MATSCI03"
-        elif self.task_id == "final_synthesis":
-            self.current_node_id = "CSMATH01"
-        else:
-            self.current_node_id = "CSMATH01"
-
+    async def reset(self, task_id: Optional[str] = None) -> LibraryObservation:
+        self.reset_state()
+        self.task_id = task_id or "identify_technology"
+        task = self.tasks[self.task_id]
+        self.current_node_id = task["start_node_id"]
+        
         start_node = self.nodes[self.current_node_id]
-        self.discovery_path.append(start_node["domain"])
+        self.discovery_path.append(start_node.domain)
+        self.thought_log.append(f"🧠 Initialized mission in {start_node.domain} domain.")
+        
+        return self._build_observation("Environment Reset Complete.")
 
-        return self._build_observation()
-
-    async def step(self, action: ActionType) -> ResearchLibrarianObservation:
-        if self.done:
-            return self._build_observation()
-
-        self.steps += 1
-        step_reward = -0.05
-
+    async def step(self, action: ActionType) -> LibraryObservation:
+        msg = f"Executing {action.action_type}..."
+        
         if isinstance(action, SearchAction):
             query = action.query.lower()
-            matched = None
-
+            self.thought_log.append(f"🔍 Scanning library for: '{query}'")
+            # Basic keyword search logic
             for node in self.nodes.values():
-                haystack = " ".join([
-                    node.get("title", ""),
-                    node.get("abstract", ""),
-                    node.get("content_text", ""),
-                    node.get("domain", "")
-                ]).lower()
-                if query in haystack:
-                    matched = node
+                if query in node.content_text.lower() or query in node.title.lower():
+                    self.current_node_id = node.node_id
+                    if node.domain not in self.discovery_path:
+                        self.discovery_path.append(node.domain)
+                        self.thought_log.append(f"🚀 INTERDISCIPLINARY JUMP: {node.domain} reached.")
                     break
-
-            if matched:
-                self.current_node_id = matched["node_id"]
-                if matched["domain"] not in self.discovery_path:
-                    self.discovery_path.append(matched["domain"])
-                    step_reward += 0.2
-                step_reward += 0.1
-
-        elif isinstance(action, ReadAction):
-            if action.node_id in self.nodes:
-                self.current_node_id = action.node_id
-                node = self.nodes[action.node_id]
-                if node["domain"] not in self.discovery_path:
-                    self.discovery_path.append(node["domain"])
-                    step_reward += 0.25
-                step_reward += 0.1
-
+                    
         elif isinstance(action, SubmitAction):
-            score = grade_research_discovery(self.task_id, action.answer)
-            step_reward += score
+            self.reward = grade_research_discovery(self.task_id, action.answer)
             self.done = True
+            self.thought_log.append(f"🏁 Synthesis Submitted. Final Score: {self.reward}")
 
-        if self.steps >= self.max_steps:
-            self.done = True
+        return self._build_observation(msg)
 
-        self.reward = max(0.0, min(1.0, self.reward + step_reward))
-        return self._build_observation()
-
-    @property
-    def state(self) -> ResearchLibrarianState:
-        return ResearchLibrarianState(
-            task_id=self.task_id,
+    def _build_observation(self, message: str) -> LibraryObservation:
+        curr = self.nodes.get(self.current_node_id)
+        
+        # Build Mermaid Graph String
+        graph = "graph LR\nStart"
+        if self.discovery_path:
+            for i, domain in enumerate(self.discovery_path):
+                graph += f" --> D{i}[{domain}]"
+        
+        return LibraryObservation(
             current_node_id=self.current_node_id,
+            current_title=curr.title if curr else "",
+            current_content=curr.content_text if curr else "",
+            current_domain=curr.domain if curr else "",
+            available_citations=curr.citations if curr else [],
             discovery_path=self.discovery_path,
-            steps=self.steps,
-            max_steps=self.max_steps,
-            done=self.done,
-            reward=self.reward,
-        )
-
-    def _build_observation(self) -> ResearchLibrarianObservation:
-        node = self.nodes.get(self.current_node_id, {})
-        task = self.tasks.get(self.task_id, {})
-
-        return ResearchLibrarianObservation(
-            current_node_id=node.get("node_id"),
-            current_title=node.get("title", ""),
-            current_domain=node.get("domain", ""),
-            current_content=node.get("content_text", ""),
-            available_citations=node.get("citations", []),
-            discovery_path=self.discovery_path,
-            indexed_count=len(self.nodes),
+            thought_log=self.thought_log[-5:], # Show last 5 thoughts
+            graph_mermaid=f"```mermaid\n{graph}\n```",
             reward=self.reward,
             done=self.done,
             task_id=self.task_id,
-            task_description=task.get("description", ""),
+            task_description=self.tasks[self.task_id]["description"]
         )
