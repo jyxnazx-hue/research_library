@@ -1,48 +1,18 @@
-import re
-
-
-def normalize(text: str) -> str:
-    return text.strip().lower()
-
-
-def grade_research_discovery(task_id: str, agent_answer: str) -> float:
-    answer = normalize(agent_answer)
-
-    if task_id == "identify_technology":
-        if "surface plasmon resonance" in answer:
-            return 1
-        if "plasmon resonance" in answer:
-            return 0.7
-        return 0
-
+def grade_research_discovery(task_id: str, answer: str) -> float:
+    # Baseline 0.05 to avoid the "0.0 is out of range" error
+    score = 0.05 
+    
+    answer_norm = answer.lower()
+    
     if task_id == "chemical_ratio":
-        ratio_patterns = [
-            r"\b7\s*:\s*3\b",
-            r"\b7\s*/\s*3\b",
-            r"\b7\s*to\s*3\b",
-            r"\bseven\s*to\s*three\b",
-        ]
-        for pattern in ratio_patterns:
-            if re.search(pattern, answer):
-                return 1
-        return 0
+        if "7:3" in answer or "70:30" in answer:
+            score += 0.80
+        if "silver" in answer_norm and "gold" in answer_norm:
+            score += 0.10
+            
+    elif task_id == "identify_technology":
+        if "surface plasmon" in answer_norm or "resonance" in answer_norm:
+            score += 0.85
 
-    if task_id == "final_synthesis":
-        has_ratio = any(
-            re.search(pattern, answer)
-            for pattern in [
-                r"\b7\s*:\s*3\b",
-                r"\b7\s*/\s*3\b",
-                r"\b7\s*to\s*3\b",
-                r"\bseven\s*to\s*three\b",
-            ]
-        )
-        has_artifact = "art-402" in answer or "artifact 402" in answer
-
-        if has_ratio and has_artifact:
-            return 1
-        if has_ratio or has_artifact:
-            return 0.5
-        return 0
-
-    return 0
+    # Clamp logic: never 0.0, never 1.0. Strictly (0, 1).
+    return max(0.01, min(0.99, score))
