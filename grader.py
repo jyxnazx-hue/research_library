@@ -10,10 +10,10 @@ def grade_research_discovery(task_id: str, agent_answer: str) -> float:
 
     if task_id == "identify_technology":
         if "surface plasmon resonance" in answer:
-            return 1.0
+            return 1
         if "plasmon resonance" in answer:
             return 0.7
-        return 0.0
+        return 0
 
     if task_id == "chemical_ratio":
         ratio_patterns = [
@@ -24,8 +24,8 @@ def grade_research_discovery(task_id: str, agent_answer: str) -> float:
         ]
         for pattern in ratio_patterns:
             if re.search(pattern, answer):
-                return 1.0
-        return 0.0
+                return 1
+        return 0
 
     if task_id == "final_synthesis":
         has_ratio = any(
@@ -40,9 +40,9 @@ def grade_research_discovery(task_id: str, agent_answer: str) -> float:
         has_artifact = "art-402" in answer or "artifact 402" in answer
 
         if has_ratio and has_artifact:
-            return 1.0
+            return 1
         if has_ratio or has_artifact:
             return 0.5
-        return 0.0
+        return 0
 
-    return 0.0
+    return 0
